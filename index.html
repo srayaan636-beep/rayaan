@@ -1,18 +1,932 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My Google AI Studio App</title>
-    <meta name="description" content="An application built with Google AI Studio." />
-    <meta property="og:title" content="My Google AI Studio App" />
-    <meta property="og:description" content="An application built with Google AI Studio." />
-    <meta property="og:type" content="website" />
-    <meta name="twitter:card" content="summary_large_image" />
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cloudify</title>
+  
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./node_modules/three/build/three.module.js",
+        "three/addons/": "./node_modules/three/examples/jsm/"
+      }
+    }
+  </script>
 
+  <!-- ES module importmap ব্যবহার হচ্ছে (renderer.js), তাই আলাদা global three.js script লোড করা হচ্ছে না — duplicate load থাকলে "Multiple instances of Three.js" error/conflict হয় -->
+
+  <!-- loaders.gl-এর সিঙ্গেল-ফাইল ডিস্ট্রিবিউশন (LAZ এবং Geoslam ডিকম্প্রেশনের জন্য) -->
+  <script src="./node_modules/@loaders.gl/core/dist/dist.min.js"></script>
+  <script src="./node_modules/@loaders.gl/las/dist/dist.min.js"></script>
+
+  <style>
+    :root {
+      --bg-app: #e8eaed;
+      --bg-panel: #ffffff;
+      --bg-card: #f1f3f4;
+      --bg-input: #ffffff;
+      --border: #dadce0;
+      --border-soft: #e0e0e0;
+      --text: #202124;
+      --text-dim: #5f6368;
+      --text-faint: #9aa0a6;
+      --accent: #1a73e8;
+      --accent-hover: #1557b0;
+      --accent-soft: rgba(26, 115, 232, 0.1);
+      --cyan: #00bcd4;
+      --green: #34a853;
+      --orange: #fbbc04;
+      --red: #ea4335;
+      --radius: 8px;
+      --radius-sm: 6px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg-app);
+      color: var(--text);
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: var(--bg-app); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
+
+    #sidebar {
+      position: absolute;
+      top: 52px; left: 0; bottom: 0;
+      width: 300px;
+      background: var(--bg-panel) !important;
+      border-right: 1px solid var(--border-soft);
+      padding: 20px 18px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      z-index: 10;
+      box-shadow: 2px 0 12px rgba(0,0,0,0.08);
+      resize: horizontal;
+      min-width: 200px;
+      max-width: 600px;
+    }
+
+    #sidebar-resize-handle {
+      position: absolute;
+      top: 0; right: -10px; bottom: 0;
+      width: 30px;
+      cursor: ew-resize;
+      z-index: 11;
+    }
+    .resize-dot {
+      position: absolute;
+      right: 8px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 2px 8px rgba(26, 115, 232, 0.4);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      pointer-events: none;
+    }
+    .resize-dot:nth-child(1) {
+      top: calc(50% - 20px);
+    }
+    .resize-dot:nth-child(2) {
+      top: 50%;
+      transform: translateY(-50%);
+    }
+    .resize-dot:nth-child(3) {
+      top: calc(50% + 20px);
+    }
+    #sidebar-resize-handle:hover .resize-dot {
+      transform: scale(1.3);
+      box-shadow: 0 4px 12px rgba(26, 115, 232, 0.6);
+    }
+    #sidebar-resize-handle:hover .resize-dot:nth-child(2) {
+      transform: translateY(-50%) scale(1.3);
+    }
+
+    #viewport-grid {
+      position: absolute;
+      top: 52px; left: 300px; right: 0; bottom: 0;
+      background: #000;
+      transition: left 0.1s ease;
+      display: grid;
+      grid-template-columns: 1fr;
+      grid-template-rows: 1fr;
+      gap: 2px;
+    }
+    #viewport-grid.panes-2 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
+    #viewport-grid.panes-3,
+    #viewport-grid.panes-4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+
+    .viewport-pane {
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(135deg, #f1f3f4 0%, #e8eaed 100%);
+    }
+    .viewport-pane #viewport,
+    .viewport-pane #viewport-2,
+    .viewport-pane #viewport-3,
+    .viewport-pane #viewport-4 {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+    }
+    .pane-label {
+      position: absolute;
+      top: 8px; left: 8px;
+      background: rgba(20,21,26,0.85);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 6px;
+      z-index: 15;
+      pointer-events: none;
+    }
+    .pane-close {
+      position: absolute;
+      top: 8px; right: 8px;
+      width: 24px; height: 24px;
+      background: rgba(20,21,26,0.85) !important;
+      color: #fff !important;
+      border: none !important;
+      border-radius: 50% !important;
+      font-size: 12px !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      display: flex !important;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 15;
+    }
+    .pane-close:hover { background: #d32f2f !important; }
+
+    #topbar {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 52px;
+      background: var(--bg-panel) !important;
+      border-bottom: 1px solid var(--border-soft);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 0 16px;
+      z-index: 20;
+      overflow-x: auto;
+      overflow-y: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    #topbar .tb-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    #topbar .tb-sep {
+      width: 1px;
+      height: 26px;
+      background: var(--border-soft);
+      flex-shrink: 0;
+    }
+    #topbar label {
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      white-space: nowrap;
+      margin: 0;
+    }
+    #topbar select {
+      width: auto;
+      min-width: 120px;
+      padding: 6px 26px 6px 10px !important;
+      margin: 0;
+      font-size: 11.5px;
+    }
+    #topbar button {
+      width: auto;
+      padding: 7px 12px !important;
+      margin: 0 !important;
+      font-size: 11.5px;
+      white-space: nowrap;
+    }
+    #topbar .tb-check {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      color: var(--text) !important;
+      font-weight: 700;
+      font-size: 11.5px;
+      text-transform: none !important;
+      white-space: nowrap;
+    }
+    #topbar .tb-check input[type=checkbox] { margin: 0; }
+    #topbar input[type=color] {
+      width: 24px; height: 24px; padding: 0; border-radius: 50%;
+      border: 1px solid var(--border); cursor: pointer; background: transparent;
+    }
+
+
+      top: 10px; left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 8px 12px;
+      display: flex;
+      gap: 8px;
+      z-index: 100;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+    }
+    .toolbar-btn {
+      all: unset;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 18px;
+    }
+    .toolbar-btn:hover {
+      background: var(--accent-soft);
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+    .toolbar-btn.active {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+
+    #leader-canvas {
+      position: absolute;
+      top: 52px; left: 300px; right: 0; bottom: 0;
+      pointer-events: none;
+    }
+
+    /* ---------- Buttons ---------- */
+    button {
+      all: unset;
+      display: block;
+      box-sizing: border-box;
+      width: 100%;
+      padding: 10px 14px !important;
+      margin: 0 0 8px 0 !important;
+      background: var(--bg-card) !important;
+      color: var(--text) !important;
+      border: 1px solid var(--border) !important;
+      border-radius: var(--radius-sm) !important;
+      font-size: 13px;
+      font-weight: 500;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    button:hover {
+      background: #e8eaed !important;
+      border-color: var(--text-faint) !important;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    button:active { transform: translateY(0); }
+
+    #btn-load {
+      background: linear-gradient(135deg, #1a73e8 0%, #1557b0 100%) !important;
+      border: none !important;
+      color: #fff !important;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 13px !important;
+      margin-bottom: 16px !important;
+      box-shadow: 0 4px 12px rgba(26, 115, 232, 0.3);
+      letter-spacing: 0.3px;
+    }
+    #btn-load:hover {
+      background: linear-gradient(135deg, #1557b0 0%, #0d47a1 100%) !important;
+      box-shadow: 0 6px 16px rgba(26, 115, 232, 0.4);
+      transform: translateY(-2px);
+    }
+
+    /* ---------- Typography / labels ---------- */
+    .control-group label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: var(--text-dim) !important;
+      margin-bottom: 10px;
+    }
+
+    /* ---------- Control group "cards" ---------- */
+    .control-group {
+      background: var(--bg-card);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius);
+      padding: 14px 14px 16px 14px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+    }
+    .control-group.compact {
+      padding: 4px 14px 4px 14px;
+      margin-bottom: 3px;
+    }
+    .control-group.compact label {
+      margin-bottom: 0px;
+      font-size: 11px;
+    }
+    .control-group.compact input[type=range] {
+      margin-top: -3px;
+      height: 3px;
+    }
+
+    /* ---------- Select dropdowns ---------- */
+    select {
+      width: 100%;
+      padding: 10px 12px !important;
+      background: var(--bg-input) !important;
+      color: var(--text) !important;
+      border: 1px solid var(--border) !important;
+      border-radius: var(--radius-sm) !important;
+      font-weight: 500;
+      font-size: 13px;
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='7' viewBox='0 0 12 7'><path d='M1 1l5 5 5-5' stroke='%239aa0a8' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      transition: border-color 0.15s ease;
+    }
+    select:hover { border-color: var(--text-faint); }
+    select:focus { outline: none; border-color: var(--accent); }
+
+    /* ---------- Range sliders ---------- */
+    input[type=range] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--border) !important;
+      margin: 6px 0 0 0;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 2px solid var(--bg-card);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      cursor: pointer;
+      margin-top: -6px;
+      transition: transform 0.15s ease;
+    }
+    input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.1); }
+
+    /* ---------- Checkboxes ---------- */
+    input[type=checkbox] {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 16px !important;
+      height: 16px !important;
+      border-radius: 3px;
+      border: 1.5px solid var(--text-faint);
+      background: var(--bg-input);
+      position: relative;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all 0.15s ease;
+    }
+    input[type=checkbox]:hover { border-color: var(--text-dim); }
+    input[type=checkbox]:checked {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+    input[type=checkbox]:checked::after {
+      content: '';
+      position: absolute;
+      left: 4px; top: 1px;
+      width: 4px; height: 8px;
+      border: solid white;
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg);
+    }
+
+    .control-group label.inline-opt {
+      color: var(--text) !important;
+      font-weight: 700 !important;
+      text-transform: none !important;
+      font-size: 12.5px;
+      display: inline !important;
+      margin-bottom: 0;
+    }
+
+    /* ---------- Text / number inputs ---------- */
+    input[type=number], input[type=text] {
+      background: var(--bg-input) !important;
+      color: var(--text) !important;
+      border: 1px solid var(--border) !important;
+      border-radius: var(--radius-sm) !important;
+    }
+    input[type=color] { border-radius: 50% !important; }
+
+    /* ---------- Status box ---------- */
+    #status {
+      background: var(--bg-input) !important;
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      font-size: 11.5px;
+      color: var(--text-dim);
+      margin-top: 8px;
+      line-height: 1.5;
+    }
+
+    /* ---------- Progress bar ---------- */
+    #progress-container {
+      background: var(--bg-input) !important;
+      border: 1px solid var(--border-soft) !important;
+      border-radius: 20px !important;
+      height: 8px !important;
+    }
+    #progress-bar {
+      background: linear-gradient(90deg, var(--cyan), var(--accent)) !important;
+      height: 8px !important;
+    }
+
+    /* ---------- List boxes ---------- */
+    .list-box {
+      max-height: 100px;
+      overflow-y: auto;
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    /* ---------- Keyboard shortcuts modal ---------- */
+    .shortcuts-modal {
+      display: none;
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 380px;
+      max-height: 80vh;
+      overflow-y: auto;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 22px;
+      z-index: 999;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      opacity: 0;
+    }
+    .shortcuts-modal.show {
+      opacity: 1;
+    }
+    .shortcuts-modal h3 {
+      margin: 0 0 14px 0;
+      font-size: 15px;
+      color: var(--text);
+      cursor: move;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .shortcuts-modal h3::before {
+      content: '⋮⋮';
+      color: var(--accent);
+      font-size: 16px;
+      letter-spacing: -2px;
+    }
+    .shortcut-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border-soft);
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+    .shortcut-key {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 2px 8px;
+      color: var(--cyan);
+      font-family: monospace;
+      font-size: 11px;
+    }
+
+    /* ---------- Measurement Labels ---------- */
+    .measure-permanent-label, .measure-float-label {
+      position: absolute;
+      background: rgba(255, 255, 255, 0.95);
+      border: 1px solid rgba(26, 115, 232, 0.3);
+      border-left: 3px solid #1a73e8;
+      color: #202124;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 500;
+      white-space: pre-line;
+      pointer-events: auto;
+      user-select: none;
+      z-index: 1000;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+      line-height: 1.5;
+      backdrop-filter: blur(8px);
+    }
+    .measure-float-label {
+      border: 1px solid rgba(26, 115, 232, 0.4);
+      background: rgba(255, 255, 255, 0.98);
+    }
+
+    /* ---------- Layer List Items ---------- */
+    .list-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 10px;
+      margin-bottom: 6px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-soft);
+      border-radius: 6px;
+      font-size: 12px;
+      transition: all 0.15s ease;
+    }
+    .list-item:hover {
+      background: var(--border-soft);
+      border-color: var(--text-faint);
+    }
+    .del-icon {
+      cursor: pointer;
+      color: var(--red);
+      font-size: 15px;
+      padding: 4px 8px;
+      border-radius: 5px;
+      transition: all 0.2s ease;
+      opacity: 0.7;
+    }
+    .del-icon:hover {
+      background: rgba(250, 82, 82, 0.15);
+      opacity: 1;
+      transform: scale(1.1);
+    }
+
+    /* ---------- Fixed Control Groups (drag-reorder removed) ---------- */
+    .control-group {
+      position: relative;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .control-group.dragging {
+      opacity: 0.4;
+      transform: scale(0.95);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+      z-index: 1000;
+    }
+    .control-group.drag-over-top {
+      border-top: 3px solid var(--accent);
+    }
+    .control-group.drag-over-bottom {
+      border-bottom: 3px solid var(--accent);
+    }
+    .drag-placeholder {
+      height: 0;
+      overflow: hidden;
+      transition: height 0.2s ease;
+    }
+    .drag-placeholder.active {
+      height: 80px;
+      background: var(--accent-soft);
+      border: 2px dashed var(--accent);
+      border-radius: var(--radius);
+      margin: 6px 0;
+    }
+    .control-group::before {
+      content: '⋮⋮';
+      position: absolute;
+      left: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-faint);
+      font-size: 14px;
+      letter-spacing: -2px;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      pointer-events: none;
+    }
+    .control-group:hover::before {
+      opacity: 1;
+    }
+    .control-group label {
+      padding-left: 20px;
+    }
+  </style>
+  <script>
+    // Sidebar resize and draggable control groups
+    document.addEventListener('DOMContentLoaded', () => {
+      // Sidebar resize functionality
+      const sidebar = document.getElementById('sidebar');
+      const resizeHandle = document.getElementById('sidebar-resize-handle');
+      const viewport = document.getElementById('viewport-grid');
+      const leaderCanvas = document.getElementById('leader-canvas');
+      let isResizing = false;
+      let startX, startWidth;
+
+      resizeHandle.addEventListener('mousedown', (e) => {
+        isResizing = true;
+        startX = e.clientX;
+        startWidth = sidebar.offsetWidth;
+        document.body.style.cursor = 'ew-resize';
+        document.body.style.userSelect = 'none';
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!isResizing) return;
+        const diff = e.clientX - startX;
+        const newWidth = Math.max(200, Math.min(600, startWidth + diff));
+        sidebar.style.width = newWidth + 'px';
+        viewport.style.left = newWidth + 'px';
+        leaderCanvas.style.left = newWidth + 'px';
+      });
+
+      document.addEventListener('mouseup', () => {
+        if (isResizing) {
+          isResizing = false;
+          document.body.style.cursor = '';
+          document.body.style.userSelect = '';
+        }
+      });
+
+      // Control groups: drag-to-reorder সরিয়ে দেওয়া হয়েছে, sidebar box গুলো এখন fixed (move করা যায় না)
+
+      // Draggable modal
+      const modal = document.getElementById('shortcuts-help-modal');
+      const modalHeader = modal?.querySelector('h3');
+      if (modal && modalHeader) {
+        let isDraggingModal = false;
+        let modalOffsetX, modalOffsetY;
+
+        modalHeader.addEventListener('mousedown', (e) => {
+          isDraggingModal = true;
+          const rect = modal.getBoundingClientRect();
+          modalOffsetX = e.clientX - rect.left;
+          modalOffsetY = e.clientY - rect.top;
+          modal.style.transform = 'none';
+          modal.style.left = rect.left + 'px';
+          modal.style.top = rect.top + 'px';
+          document.body.style.cursor = 'move';
+          document.body.style.userSelect = 'none';
+        });
+
+        document.addEventListener('mousemove', (e) => {
+          if (!isDraggingModal) return;
+          const x = e.clientX - modalOffsetX;
+          const y = e.clientY - modalOffsetY;
+          modal.style.left = Math.max(0, Math.min(window.innerWidth - modal.offsetWidth, x)) + 'px';
+          modal.style.top = Math.max(0, Math.min(window.innerHeight - modal.offsetHeight, y)) + 'px';
+        });
+
+        document.addEventListener('mouseup', () => {
+          if (isDraggingModal) {
+            isDraggingModal = false;
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+          }
+        });
+      }
+    });
+  </script>
+</head>
+<body>
+
+  <!-- টপ বার: Color/Background/Shading/Opacity/UCS/Measurement কন্ট্রোল -->
+  <div id="topbar">
+    <div class="tb-group">
+      <label>🎨 Color</label>
+      <select id="combo-color">
+        <option value="rgb">Original RGB</option>
+        <option value="intensity">Intensity</option>
+        <option value="elevation">Elevation</option>
+        <option value="solid">Solid White</option>
+      </select>
+    </div>
+
+    <div class="tb-sep"></div>
+
+    <div class="tb-group">
+      <label class="tb-check"><input type="checkbox" id="chk-black-bg" checked> ● Black BG</label>
+      <label class="tb-check"><input type="checkbox" id="chk-white-bg"> ○ White BG</label>
+    </div>
+
+    <div class="tb-sep"></div>
+
+    <div class="tb-group">
+      <label class="tb-check"><input type="checkbox" id="chk-shading" checked> ◐ 3D Shading</label>
+      <label class="tb-check"><input type="checkbox" id="chk-smart-opacity"> ◔ Smart Opacity</label>
+    </div>
+
+    <div class="tb-sep"></div>
+
+    <div class="tb-group">
+      <label>📐 UCS</label>
+      <button id="btn-ucs">▱ Adjust</button>
+      <button id="btn-apply-ucs" style="display: none;">✓ Apply</button>
+      <button id="btn-reset-ucs">↻ Reset</button>
+    </div>
+
+    <div class="tb-sep"></div>
+
+    <div class="tb-group">
+      <label>📏 Measure</label>
+      <button id="btn-measure-dist">↔ Distance</button>
+      <button id="btn-measure-area">▱ Area</button>
+      <select id="combo-area-shape">
+        <option value="Rectangle" selected>Rectangle</option>
+        <option value="Polygon">Polygon</option>
+        <option value="Circle">Circle</option>
+      </select>
+      <input type="color" id="measure-color-picker" value="#00ffcc">
+    </div>
+  </div>
+
+  <!-- সাইডবার প্যানেল -->
+  <div id="sidebar">
+    <div id="sidebar-resize-handle">
+      <div class="resize-dot"></div>
+      <div class="resize-dot"></div>
+      <div class="resize-dot"></div>
+    </div>
+    <div style="background: linear-gradient(135deg, rgba(26, 115, 232, 0.08) 0%, rgba(26, 115, 232, 0.03) 100%); border: 1px solid rgba(26, 115, 232, 0.15); border-radius: 8px; padding: 16px 12px; margin-bottom: 18px;">
+      <img src="./assets/cloudify-logo.png" alt="Cloudify" style="width:100%; max-width:260px; display:block; margin: 0 auto; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.1));">
+    </div>
+    <button id="btn-load">☁ Open Point Cloud (.las/.laz/.geoslam)</button>
+    <button id="btn-add-compare" style="background: var(--bg-card); font-size: 11.5px; margin-bottom: 12px;">🗂 + Compare Another Scan</button>
+
+    <div style="margin-top: -10px; margin-bottom: 10px;">
+      <label style="font-size: 10px; color: var(--text-dim);">📦 LOAD LIMIT:</label>
+      <select id="combo-density" style="width: 100%; padding: 8px; background: var(--bg-input); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); font-weight: 500;">
+          <option value="1000000">1M Pts (Fastest)</option>
+          <option value="2000000">2M Pts (Low PC)</option>
+          <option value="3000000" selected>3M Pts (Default)</option>
+          <option value="5000000">5M Pts (Mid PC)</option>
+          <option value="10000000">10M Pts (High PC)</option>
+          <option value="999999999">Full (Ultra PC)</option>
+      </select>
+    </div>
+
+    <input type="file" id="file-input" accept=".las,.laz,.geoslam,.e57" style="display:none">
+
+    <div id="progress-container" style="display: none; width: 100%; background: #222; border-radius: 6px; margin-top: 10px; margin-bottom: 5px; overflow: hidden; border: 1px solid #444;">
+      <div id="progress-bar" style="width: 0%; height: 14px; background: linear-gradient(90deg, #00c6ff, #0072ff); transition: width 0.1s linear;"></div>
+    </div>
+    
+    <!-- ১. ভিউ কন্ট্রোল গ্রিড (icon + label, compact square layout) -->
+    <div class="control-group">
+      <label>🧭 View Controls</label>
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 6px;">
+        <button id="btn-view-top"   style="margin: 0; padding: 10px 4px; display:flex; flex-direction:column; align-items:center; gap:3px;"><span style="font-size:16px;">⬆</span><span style="font-size:10px;">Top</span></button>
+        <button id="btn-view-front" style="margin: 0; padding: 10px 4px; display:flex; flex-direction:column; align-items:center; gap:3px;"><span style="font-size:16px;">▣</span><span style="font-size:10px;">Front</span></button>
+        <button id="btn-view-right" style="margin: 0; padding: 10px 4px; display:flex; flex-direction:column; align-items:center; gap:3px;"><span style="font-size:16px;">➡</span><span style="font-size:10px;">Right</span></button>
+        <button id="btn-view-left"  style="margin: 0; padding: 10px 4px; display:flex; flex-direction:column; align-items:center; gap:3px;"><span style="font-size:16px;">⬅</span><span style="font-size:10px;">Left</span></button>
+        <button id="btn-view-back"  style="margin: 0; padding: 10px 4px; display:flex; flex-direction:column; align-items:center; gap:3px;"><span style="font-size:16px;">⬇</span><span style="font-size:10px;">Back</span></button>
+        <button id="btn-view-iso"   style="margin: 0; padding: 10px 4px; display:flex; flex-direction:column; align-items:center; gap:3px;"><span style="font-size:16px;">◈</span><span style="font-size:10px;">ISO</span></button>
+      </div>
+      <button id="btn-view-ortho" style="margin-top: 5px;">▱ Ortho: OFF</button>
+    </div>
+
+    <!-- ২. পয়েন্ট সাইজ ও অপাসিটি -->
+    <div class="control-group compact">
+      <label style="display: flex; justify-content: space-between; align-items: center;">
+        ⬤ Point Size: <span id="lbl-ptsize">2</span>
+        <button id="btn-reset-ptsize" style="width: auto; padding: 4px 8px; font-size: 10px; margin: 0;">Reset</button>
+      </label>
+      <input type="range" id="slider-ptsize" min="1" max="8" step="1" value="2">
+    </div>
+
+    <div class="control-group compact">
+      <label style="display: flex; justify-content: space-between; align-items: center;">
+        ◐ Point Opacity: <span id="lbl-opacity">100</span>%
+        <button id="btn-reset-opacity" style="width: auto; padding: 4px 8px; font-size: 10px; margin: 0;">Reset</button>
+      </label>
+      <input type="range" id="slider-opacity" min="5" max="100" value="100">
+    </div>
+
+
+
+    <!-- UCS Saved Points (buttons top bar-এ) -->
+    <div class="control-group">
+      <label>📍 UCS Points</label>
+      <div id="list-ucs" class="list-box"></div>
+    </div>
+
+    <!-- Measurement History (বাটন top bar-এ) -->
+    <div class="control-group">
+      <label>📋 Measurements</label>
+      <div id="list-meas" class="list-box"></div>
+    </div>
+
+    <!-- Slice & Layers -->
+    <div class="control-group">
+      <label>▤ Slice & Layers</label>
+      <button id="btn-slice" style="margin-bottom: 8px; display:flex; align-items:center; justify-content:center; gap:8px;"><span style="font-size:15px;">▤</span> Toggle Slice</button>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px;">
+          <button id="btn-save-layer" style="margin: 0; display:flex; align-items:center; justify-content:center; gap:6px;"><span>💾</span>Save View</button>
+          <button id="btn-reset-slice" style="margin: 0; display:flex; align-items:center; justify-content:center; gap:6px;"><span>↺</span>Reset Cut</button>
+      </div>
+      <div style="margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+        <label style="margin: 0; white-space: nowrap; text-transform: none; display:flex; align-items:center; gap:5px;"><span>↕</span>Thickness (cm):</label>
+        <input type="number" id="input-slice-thickness" placeholder="e.g. 150" style="padding: 6px; font-size: 11px; background: #1a1a1a; color: white; border: 1px solid #444; border-radius: 4px; width: 100%;">
+      </div>
+      <div id="list-layers" class="list-box"></div>
+    </div>
+
+    <!-- Export -->
+    <div class="control-group" id="export-quality-group" style="text-align: left;">
+      <label style="text-align: left;">🖼 Export Quality</label>
+      <div style="display: flex; gap: 10px; margin-bottom: 8px; text-align: left; justify-content: flex-start;">
+        <label class="inline-opt" style="cursor: pointer; text-align: left;"><input type="radio" name="export_res" value="1" checked> SD (1x)</label>
+        <label class="inline-opt" style="cursor: pointer; text-align: left;"><input type="radio" name="export_res" value="2"> HD (2x)</label>
+      </div>
+      <button id="btn-export-img" style="background: #d84315; margin-bottom: 5px; text-align: left; display: flex; justify-content: flex-start; align-items: center; gap: 8px;">⬇ Export Image (P)</button>
+      <button id="btn-copy-img"   style="background: #00897b; margin-bottom: 5px; text-align: left; display: flex; justify-content: flex-start; align-items: center; gap: 8px;">⧉ Copy to Clipboard (Ctrl+P)</button>
+      <button id="btn-set-default" style="background: #ff9800; border-color: #f57c00; margin: 0; color: black; font-weight: 900; text-align: left; display: flex; justify-content: flex-start; align-items: center; gap: 8px;">⚙ Set as Default Viewer</button>
+      <button id="btn-export-e57" onclick="window.triggerE57Export()" style="width: 100%; padding: 10px; margin-top: 8px; background: #2b2b2b; border: 1px solid #ff9800; color: #ff9800; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; text-align: left; display: flex; justify-content: flex-start; align-items: center; gap: 8px;">
+        ⎘ Export Full E57 Cloud
+      </button>
+    </div>
+
+    <div id="status">● Ready — Press F1 for Shortcuts</div>
+  </div>
+
+  <div id="viewport-grid" class="panes-1">
+    <div class="viewport-pane" id="pane-1">
+      <div id="viewport"></div>
+    </div>
+    <div class="viewport-pane" id="pane-2" style="display:none;">
+      <div id="viewport-2"></div>
+      <div class="pane-label" id="pane-2-label">Scan 2</div>
+      <button class="pane-close" id="pane-2-close" title="Close this viewport">✕</button>
+    </div>
+    <div class="viewport-pane" id="pane-3" style="display:none;">
+      <div id="viewport-3"></div>
+      <div class="pane-label" id="pane-3-label">Scan 3</div>
+      <button class="pane-close" id="pane-3-close" title="Close this viewport">✕</button>
+    </div>
+    <div class="viewport-pane" id="pane-4" style="display:none;">
+      <div id="viewport-4"></div>
+      <div class="pane-label" id="pane-4-label">Scan 4</div>
+      <button class="pane-close" id="pane-4-close" title="Close this viewport">✕</button>
+    </div>
+  </div>
+  <canvas id="leader-canvas"></canvas>
+
+  <!-- Keyboard Shortcuts Modal -->
+  <div id="shortcuts-help-modal" class="shortcuts-modal">
+    <h3>⌘ Application Keyboard Shortcuts</h3>
+    <div class="shortcut-row"><span>Open Point Cloud</span><span class="shortcut-key">O</span></div>
+    <div class="shortcut-row"><span>Toggle Slice Box</span><span class="shortcut-key">S</span></div>
+    <div class="shortcut-row"><span>Distance Measure Mode</span><span class="shortcut-key">M</span></div>
+    <div class="shortcut-row"><span>Area Measure Mode</span><span class="shortcut-key">Shift + M</span></div>
+    <div class="shortcut-row"><span>Adjust UCS Alignment</span><span class="shortcut-key">U</span></div>
+    <div class="shortcut-row"><span>Top View / Front View</span><span class="shortcut-key">T / F</span></div>
+    <div class="shortcut-row"><span>Left / Right View</span><span class="shortcut-key">L / Shift + R</span></div>
+    <div class="shortcut-row"><span>ISO Isometric View</span><span class="shortcut-key">R</span></div>
+    <div class="shortcut-row"><span>Hide/Show Sidebar</span><span class="shortcut-key">H</span></div>
+    <div class="shortcut-row"><span>Undo / Redo Action</span><span class="shortcut-key">Ctrl+Z / Ctrl+Y</span></div>
+    <div class="shortcut-row"><span>Save View Layer</span><span class="shortcut-key">Ctrl + S</span></div>
+    <div class="shortcut-row"><span>Export HD Image</span><span class="shortcut-key">P (Ctrl+P to Copy)</span></div>
+    <div class="shortcut-row"><span>Solid Wall Mode</span><span class="shortcut-key">Q</span></div>
+    <div class="shortcut-row"><span>Zoom to Fit All</span><span class="shortcut-key">W</span></div>
+    <div class="shortcut-row"><span>Hide/Show Measurements</span><span class="shortcut-key">B</span></div>
+    <div class="shortcut-row"><span>Close Guide Manual</span><span class="shortcut-key">ESC / F1</span></div>
+    <button onclick="document.getElementById('shortcuts-help-modal').style.display='none'" style="margin-top:12px; background:#ff9800; color:black; padding:8px;">Close Manual</button>
+  </div>
+
+  <script>
+    // যেকোনো JS error সরাসরি স্ক্রিনে দেখানোর জন্য (DevTools ছাড়াই)
+    window.addEventListener('error', function(e) {
+      const box = document.createElement('div');
+      box.style.cssText = 'position:fixed;top:60px;left:310px;right:10px;background:#7a1414;color:#fff;padding:14px;border-radius:8px;font-family:monospace;font-size:12px;z-index:9999;white-space:pre-wrap;box-shadow:0 4px 20px rgba(0,0,0,0.5);';
+      box.textContent = '⚠ JS ERROR:\n' + (e.message || 'unknown') + '\nFile: ' + (e.filename || '?') + '  Line: ' + (e.lineno || '?');
+      document.body.appendChild(box);
+    });
+  </script>
+  <script type="module" src="renderer.js"></script>
+</body>
+</html>

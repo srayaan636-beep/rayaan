@@ -1,0 +1,58 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" width="800" height="300" viewBox="0 0 800 300">
+  <rect width="800" height="300" fill="#0a0a0f"/>
+  
+  <!-- Cloud shape (geometric/low-poly style) -->
+  <defs>
+    <linearGradient id="cloudGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6b21e8;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#7c3aed;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#4f46e5;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="dotGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#818cf8;stop-opacity:0.9" />
+      <stop offset="100%" style="stop-color:#60a5fa;stop-opacity:0.1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Geometric cloud polygons -->
+  <polygon points="60,220 110,160 160,200 140,240" fill="#5b21b6" opacity="0.9"/>
+  <polygon points="80,180 130,120 180,160 160,200 110,160" fill="#6d28d9" opacity="0.95"/>
+  <polygon points="110,120 160,70 210,110 180,160 130,120" fill="#7c3aed"/>
+  <polygon points="140,80 190,40 240,80 210,110 160,70" fill="#8b5cf6"/>
+  <polygon points="160,200 210,150 250,190 220,240" fill="#4c1d95" opacity="0.85"/>
+  <polygon points="180,160 230,110 270,150 250,190 210,150" fill="#5b21b6" opacity="0.9"/>
+  <polygon points="210,110 250,70 290,100 270,150 230,110" fill="#6d28d9"/>
+  <polygon points="240,80 280,50 310,80 290,100 250,70" fill="#7c3aed"/>
+  <polygon points="130,120 180,160 160,70" fill="#9333ea" opacity="0.7"/>
+  <polygon points="180,160 210,110 250,190" fill="#6d28d9" opacity="0.6"/>
+  <polygon points="60,220 110,160 80,180" fill="#4c1d95" opacity="0.8"/>
+
+  <!-- Dissolving dots -->
+  <circle cx="310" cy="90" r="6" fill="#818cf8" opacity="0.9"/>
+  <circle cx="330" cy="110" r="5" fill="#818cf8" opacity="0.8"/>
+  <circle cx="325" cy="75" r="4" fill="#93c5fd" opacity="0.85"/>
+  <circle cx="350" cy="100" r="5" fill="#818cf8" opacity="0.7"/>
+  <circle cx="345" cy="130" r="4" fill="#818cf8" opacity="0.6"/>
+  <circle cx="370" cy="90" r="4" fill="#93c5fd" opacity="0.65"/>
+  <circle cx="365" cy="115" r="3" fill="#818cf8" opacity="0.55"/>
+  <circle cx="390" cy="80" r="3" fill="#93c5fd" opacity="0.5"/>
+  <circle cx="385" cy="105" r="3" fill="#818cf8" opacity="0.45"/>
+  <circle cx="405" cy="95" r="3" fill="#93c5fd" opacity="0.4"/>
+  <circle cx="340" cy="155" r="4" fill="#818cf8" opacity="0.5"/>
+  <circle cx="360" cy="145" r="3" fill="#93c5fd" opacity="0.45"/>
+  <circle cx="375" cy="135" r="3" fill="#818cf8" opacity="0.35"/>
+  <circle cx="395" cy="125" r="2" fill="#93c5fd" opacity="0.3"/>
+  <circle cx="415" cy="110" r="2" fill="#818cf8" opacity="0.25"/>
+  <circle cx="310" cy="145" r="4" fill="#818cf8" opacity="0.6"/>
+  <circle cx="355" cy="170" r="3" fill="#93c5fd" opacity="0.4"/>
+  <circle cx="320" cy="170" r="3" fill="#818cf8" opacity="0.35"/>
+  <circle cx="410" cy="130" r="2" fill="#93c5fd" opacity="0.2"/>
+  <circle cx="425" cy="95" r="2" fill="#818cf8" opacity="0.2"/>
+  
+  <!-- Cloudify text -->
+  <text x="440" y="160" font-family="'Segoe UI', Arial, sans-serif" font-size="82" font-weight="800" fill="white" letter-spacing="-2">Cloud</text>
+  <text x="660" y="160" font-family="'Segoe UI', Arial, sans-serif" font-size="82" font-weight="800" fill="#818cf8" letter-spacing="-2">ify</text>
+  
+  <!-- Tagline -->
+  <text x="442" y="192" font-family="'Segoe UI', Arial, sans-serif" font-size="16" fill="#60a5fa" letter-spacing="4">COMPARE  •  ANALYZE  •  VISUALIZE</text>
+</svg>

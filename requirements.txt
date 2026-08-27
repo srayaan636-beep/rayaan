@@ -1,0 +1,19 @@
+# ClearScope Pro v14.0 - Python Backend Dependencies
+# Install with: pip install -r requirements.txt
+
+# Web framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+
+# Point cloud parsers
+laspy[lazrs,laszip]==2.5.3
+e57==0.1.3
+
+# Export (optional - for E57 export feature)
+pye57==0.4.6
+
+# Numeric processing
+numpy==1.26.3
+
+# HTTP utilities (included with fastapi)
+python-multipart==0.0.6
