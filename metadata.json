@@ -1,0 +1,6 @@
+{
+  "name": "Cloudify EXE Builder Guide & GitHub CI/CD Generator",
+  "description": "Interactive GitHub Actions CI/CD generator and step-by-step workflow guide to build Windows EXE installer for Electron and Python Point Cloud applications.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
