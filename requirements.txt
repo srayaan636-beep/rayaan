@@ -7,7 +7,7 @@ uvicorn[standard]==0.27.0
 
 # Point cloud parsers
 laspy[lazrs,laszip]==2.5.3
-e57==0.1.3
+e57==0.2.3
 
 # Export (optional - for E57 export feature)
 pye57==0.4.6
