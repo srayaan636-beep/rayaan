@@ -13,7 +13,7 @@ e57==0.2.3
 pye57==0.4.6
 
 # Numeric processing
-numpy==1.26.3
+numpy==1.24.3
 
 # HTTP utilities (included with fastapi)
 python-multipart==0.0.6
