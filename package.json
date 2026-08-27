@@ -40,27 +40,15 @@
         "from": "backend_dist/server/",
         "to": "backend/",
         "filter": ["**/*"]
-      },
-      {
-        "from": "assets/",
-        "to": "assets/",
-        "filter": ["**/*"]
       }
     ],
     "win": {
       "target": [
         { "target": "nsis", "arch": ["x64"] }
       ],
-      "icon": "assets/app-icon.ico",
       "forceCodeSigning": false,
       "signExecutable": false,
-      "signAndEditExecutable": false,
-      "fileAssociations": [
-        { "ext": "las",     "name": "LAS Point Cloud",     "description": "LAS Point Cloud File",     "icon": "assets/app-icon.ico" },
-        { "ext": "laz",     "name": "LAZ Point Cloud",     "description": "LAZ Point Cloud File",     "icon": "assets/app-icon.ico" },
-        { "ext": "e57",     "name": "E57 Point Cloud",     "description": "E57 Point Cloud File",     "icon": "assets/app-icon.ico" },
-        { "ext": "geoslam", "name": "GeoSLAM Point Cloud", "description": "GeoSLAM Point Cloud File", "icon": "assets/app-icon.ico" }
-      ]
+      "signAndEditExecutable": false
     },
     "nsis": {
       "oneClick": false,
@@ -69,8 +57,5 @@
       "createStartMenuShortcut": true,
       "shortcutName": "Cloudify"
     }
-  },
-  "allowScripts": {
-    "electron@28.3.3": true
   }
 }
